@@ -814,8 +814,26 @@ unittest
     assert(B.array == correct);
 }
 
-// TODO __m256i _mm256_bslli_epi128 (__m256i a, const int imm8) pure @safe
-// TODO __m256i _mm256_bsrli_epi128 (__m256i a, const int imm8) pure @safe
+__m256i _mm256_bslli_epi128(ubyte IMM8)(__m256i a) pure @trusted
+{
+    // No direct intrinsic for _mm256_bslli_epi128 as far as I'm aware on either LDC
+    // Maybe LLVM IR can be used?
+    static if (GDC_with_AVX2)
+        return cast(__m256i)__builtin_ia32_pslldqi256(cast(byte32)a, cast(int)(IMM8 * 8));
+    else
+    {
+        auto hi = _mm_bslli_si128!IMM8(_mm256_extractf128_si256!0(a));
+        auto lo = _mm_bslli_si128!IMM8(_mm256_extractf128_si256!1(a));
+        return _mm256_set_m128i(hi, lo);
+    }
+}
+
+unittest
+{
+    __m256i a = _mm256_setr_epi8(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32);
+
+    assert(_mm256_bslli_epi128!7(a).array == [1224979098644774912, 1808220633999610642, 72057594037927936, 650777868590383874]);
+}
 
 /// Compare packed 16-bit integers in `a` and `b` for equality.
 __m256i _mm256_cmpeq_epi16 (__m256i a, __m256i b) pure @trusted
@@ -2672,16 +2690,29 @@ unittest
 __m256i _mm256_shuffle_epi8(__m256i a, __m256i b) pure @trusted
 {
     static if (GDC_with_AVX2 || LDC_with_AVX2)
-        return cast(__m256i)__builtin_ia32_pshufb256(cast(ubyte32)a, cast(ubyte32)b);
+        return cast(__m256i)__builtin_ia32_pshufb256(cast(byte32)a, cast(byte32)b);
     else
     {
         auto hi = _mm_shuffle_epi8(_mm256_extractf128_si256!0(a), _mm256_extractf128_si256!0(b));
         auto lo = _mm_shuffle_epi8(_mm256_extractf128_si256!1(a), _mm256_extractf128_si256!1(b));
-        return _mm256_set_m128i(hi, lo);
+        return _mm256_setr_m128i(hi, lo);
     }
 }
 
-// TODO: It just works, write a unittest yourself you miser.
+unittest
+{
+    __m256i a = _mm256_set_epi8(32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1);
+    __m256i b = _mm256_set_epi8(0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1);
+
+    __m256i expected = _mm256_setr_epi8(
+        2, 2, 2, 2, 2, 2, 2, 2, 
+        1, 1, 1, 1, 1, 1, 1, 1, 
+        18, 18, 18, 18, 18, 18, 18, 18, 
+        17, 17, 17, 17, 17, 17, 17, 17
+    );
+
+    assert(_mm256_shuffle_epi8(a, b).array == expected.array);
+}
 
 /// Blend packed 8-bit integers from `a` and `b` using `mask`, and return the results.
 __m256i _mm256_blendv_epi8(__m256i a, __m256i b, __m256i mask) @trusted
@@ -2692,7 +2723,7 @@ __m256i _mm256_blendv_epi8(__m256i a, __m256i b, __m256i mask) @trusted
     {
         auto hi = _mm_blendv_epi8(_mm256_extractf128_si256!0(a), _mm256_extractf128_si256!0(b), _mm256_extractf128_si256!0(mask));
         auto lo = _mm_blendv_epi8(_mm256_extractf128_si256!1(a), _mm256_extractf128_si256!1(b), _mm256_extractf128_si256!1(mask));
-        return _mm256_set_m128i(hi, lo);
+        return _mm256_setr_m128i(hi, lo);
     }
 }
 
@@ -2703,8 +2734,8 @@ unittest
     __m256i mask = _mm256_set_epi8(-1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1);
 
     __m256i expected = _mm256_setr_epi8(
-        16, 15, 14, 13, 21, 11, 23, 9, 25, 7, 27, 5, 29, 3, 31, 1, 
-        32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17
+        32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17,
+        16, 15, 14, 13, 21, 11, 23, 9, 25, 7, 27, 5, 29, 3, 31, 1
     );
 
     assert(_mm256_blendv_epi8(a, b, mask).array == expected.array);

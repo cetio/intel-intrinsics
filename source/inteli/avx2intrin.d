@@ -814,6 +814,7 @@ unittest
     assert(B.array == correct);
 }
 
+// Shift 128-bit lanes in `a` left by `IMM8` bytes while shifting in zeros, and return the results.
 __m256i _mm256_bslli_epi128(ubyte IMM8)(__m256i a) pure @trusted
 {
     // No direct intrinsic for _mm256_bslli_epi128 as far as I'm aware on either LDC
@@ -833,6 +834,43 @@ unittest
     __m256i a = _mm256_setr_epi8(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32);
 
     assert(_mm256_bslli_epi128!7(a).array == [1224979098644774912, 1808220633999610642, 72057594037927936, 650777868590383874]);
+}
+
+// Shift 128-bit lanes in `a` right by `IMM8` bytes while shifting in zeros, and return the results.
+__m256i _mm256_bsrli_epi128(ubyte IMM8)(__m256i a) pure @trusted
+{
+    static if (GDC_with_AVX2)
+        return cast(__m256i)__builtin_ia32_psrldqi256(cast(byte32)a, cast(int)(IMM8 * 8));
+    else
+    {
+        auto hi = _mm_bsrli_si128!IMM8(_mm256_extractf128_si256!0(a));
+        auto lo = _mm_bsrli_si128!IMM8(_mm256_extractf128_si256!1(a));
+        return _mm256_set_m128i(hi, lo);
+    }
+}
+
+unittest
+{
+    __m256i a = _mm256_setr_epi8(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32);
+
+    assert(_mm256_bsrli_epi128!7(a).array == [2242261671028070680, 32, 1084818905618843912, 16]);
+}
+
+// Shift 128-bit lanes in `a` left by `IMM8` bytes while shifting in zeros, and return the results.
+__m256i _mm256_slli_epi128(ubyte IMM8)(__m256i a) pure @trusted => _mm256_bslli_epi128!IMM8(a);
+
+// Shift 128-bit lanes in `a` right by `IMM8` bytes while shifting in zeros, and return the results.
+__m256i _mm256_srli_epi128(ubyte IMM8)(__m256i a) pure @trusted => _mm256_bsrli_epi128!IMM8(a);
+
+unittest
+{
+    __m256i a = _mm256_setr_epi8(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32);
+
+    import std.stdio;
+    debug writeln(_mm256_srli_epi128!1(a));
+    auto g = _mm256_srli_epi128!1(a);
+    debug writeln((cast(ubyte*)&g)[0..32]);
+    assert(_mm256_srli_epi128!56(a).array == [2242261671028070680, 32, 1084818905618843912, 16]);
 }
 
 /// Compare packed 16-bit integers in `a` and `b` for equality.

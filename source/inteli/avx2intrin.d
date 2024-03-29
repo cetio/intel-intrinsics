@@ -2816,6 +2816,39 @@ unittest
 
 // TODO: Shuffling should ideally NOT use comptime parameters, as it makes dynamic masks impossible.5
 
+/// Shuffle 32-bit integers in `a` within 128-bit lanes according to shuffle control mask in the 
+/// corresponding 32-bit element of `b`, and return the results.
+__m256i _mm256_shuffle_epi32(ubyte CTRL)(__m256i a) pure @trusted
+{
+    static if (GDC_with_AVX2)
+        return cast(__m256i)__builtin_ia32_pshufd256(cast(byte32)a, cast(int)CTRL);
+    else static if (LDC_with_AVX2)
+    {
+        return cast(__m256i)shufflevectorLDC!(int8,
+            (CTRL >> 0) & 3,
+            (CTRL >> 2) & 3,
+            (CTRL >> 4) & 3,
+            (CTRL >> 6) & 3,
+            ((CTRL >> 0) & 3) + 4,
+            ((CTRL >> 2) & 3) + 4,
+            ((CTRL >> 4) & 3) + 4,
+            ((CTRL >> 6) & 3) + 4)(cast(int8)a, cast(int8)a);
+    }
+    else
+    {
+        auto hi = _mm_shuffle_epi32!CTRL(_mm256_extractf128_si256!0(a));
+        auto lo = _mm_shuffle_epi32!CTRL(_mm256_extractf128_si256!1(a));
+        return _mm256_setr_m128i(hi, lo);
+    }
+}
+
+unittest
+{
+    __m256i a = _mm256_set_epi32(32, 31, 30, 29, 28, 27, 26, 25);
+
+    assert(_mm256_shuffle_epi32!255(a).array == [120259084316L, 120259084316, 137438953504, 137438953504]);
+}
+
 /// Blend packed 8-bit integers from `a` and `b` using `mask`, and return the results.
 __m256i _mm256_blendv_epi8(__m256i a, __m256i b, __m256i mask) @trusted
 {

@@ -2983,7 +2983,6 @@ __m128i _mm_sllv_epi64(__m128i a, __m128i b) pure @trusted
         return cast(__m128i)__builtin_ia32_psllv2di(cast(long2)a, cast(long2)b);
     else
     {
-        // TODO: _mm_setr_epi64x should be a thing
         return _mm_setr_epi64(
             _mm_extract_epi64(a, 0) << _mm_extract_epi64(b, 0),
             _mm_extract_epi64(a, 1) << _mm_extract_epi64(b, 1)

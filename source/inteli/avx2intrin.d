@@ -814,19 +814,24 @@ unittest
     assert(B.array == correct);
 }
 
-// Shift 128-bit lanes in `a` left by `IMM8` bytes while shifting in zeros, and return the results.
-__m256i _mm256_bslli_epi128(ubyte IMM8)(__m256i a) pure @trusted
+// Shift 128-bit lanes in `a` left by `CNT` bytes while shifting in zeros, and return the results.
+__m256i _mm256_bslli_epi128(ubyte CNT)(__m256i a) pure @trusted
 {
-    // No direct intrinsic for _mm256_bslli_epi128 as far as I'm aware on either LDC or GDC...
-    // Maybe LLVM IR can be used?
-    /* static if (GDC_with_AVX2)
-        return cast(__m256i)__builtin_ia32_pslldqi256(cast(byte32)a, cast(int)(IMM8 * 8));
+    static if (CNT == 16)
+        return _mm256_setzero_si256();
     else
-    { */
-        auto hi = _mm_bslli_si128!IMM8(_mm256_extractf128_si256!0(a));
-        auto lo = _mm_bslli_si128!IMM8(_mm256_extractf128_si256!1(a));
-        return _mm256_set_m128i(hi, lo);
-    //}
+    {
+        // No direct intrinsic for _mm256_bslli_epi128 as far as I'm aware on either LDC or GDC...
+        // Maybe LLVM IR can be used?
+        /* static if (GDC_with_AVX2)
+            return cast(__m256i)__builtin_ia32_pslldqi256(cast(byte32)a, cast(int)(CNT * 8));
+        else
+        { */
+            auto hi = _mm_bslli_si128!CNT(_mm256_extractf128_si256!0(a));
+            auto lo = _mm_bslli_si128!CNT(_mm256_extractf128_si256!1(a));
+            return _mm256_set_m128i(hi, lo);
+        //}
+    }
 }
 
 unittest
@@ -836,17 +841,22 @@ unittest
     assert(_mm256_bslli_epi128!7(a).array == [1224979098644774912, 1808220633999610642, 72057594037927936, 650777868590383874]);
 }
 
-// Shift 128-bit lanes in `a` right by `IMM8` bytes while shifting in zeros, and return the results.
-__m256i _mm256_bsrli_epi128(ubyte IMM8)(__m256i a) pure @trusted
+// Shift 128-bit lanes in `a` right by `CNT` bytes while shifting in zeros, and return the results.
+__m256i _mm256_bsrli_epi128(ubyte CNT)(__m256i a) pure @trusted
 {
-    /* static if (GDC_with_AVX2)
-        return cast(__m256i)__builtin_ia32_psrldqi256(cast(byte32)a, cast(int)(IMM8 * 8));
+    static if (CNT == 16)
+        return _mm256_setzero_si256();
     else
-    { */
-        auto hi = _mm_bsrli_si128!IMM8(_mm256_extractf128_si256!0(a));
-        auto lo = _mm_bsrli_si128!IMM8(_mm256_extractf128_si256!1(a));
-        return _mm256_set_m128i(hi, lo);
-    //}
+    {
+        /* static if (GDC_with_AVX2)
+            return cast(__m256i)__builtin_ia32_psrldqi256(cast(byte32)a, cast(int)(CNT * 8));
+        else
+        { */
+            auto hi = _mm_bsrli_si128!CNT(_mm256_extractf128_si256!0(a));
+            auto lo = _mm_bsrli_si128!CNT(_mm256_extractf128_si256!1(a));
+            return _mm256_set_m128i(hi, lo);
+        //}
+    }
 }
 
 unittest
@@ -856,11 +866,11 @@ unittest
     assert(_mm256_bsrli_epi128!7(a).array == [2242261671028070680, 32, 1084818905618843912, 16]);
 }
 
-// Shift 128-bit lanes in `a` left by `IMM8` bytes while shifting in zeros, and return the results.
-__m256i _mm256_slli_epi128(ubyte IMM8)(__m256i a) pure @trusted => _mm256_bslli_epi128!IMM8(a);
+// Shift 128-bit lanes in `a` left by `CNT` bytes while shifting in zeros, and return the results.
+__m256i _mm256_slli_epi128(ubyte CNT)(__m256i a) pure @trusted => _mm256_bslli_epi128!CNT(a);
 
-// Shift 128-bit lanes in `a` right by `IMM8` bytes while shifting in zeros, and return the results.
-__m256i _mm256_srli_epi128(ubyte IMM8)(__m256i a) pure @trusted => _mm256_bsrli_epi128!IMM8(a);
+// Shift 128-bit lanes in `a` right by `CNT` bytes while shifting in zeros, and return the results.
+__m256i _mm256_srli_epi128(ubyte CNT)(__m256i a) pure @trusted => _mm256_bsrli_epi128!CNT(a);
 
 /// Compare packed 16-bit integers in `a` and `b` for equality.
 __m256i _mm256_cmpeq_epi16 (__m256i a, __m256i b) pure @trusted
@@ -2938,12 +2948,55 @@ unittest
 }
 
 // TODO __m256i _mm256_slli_si256 (__m256i a, const int imm8) pure @safe
-// TODO __m128i _mm_sllv_epi32 (__m128i a, __m128i count) pure @safe
 // TODO __m256i _mm256_sllv_epi32 (__m256i a, __m256i count) pure @safe
-// TODO __m128i _mm_sllv_epi64 (__m128i a, __m128i count) pure @safe
 // TODO __m256i _mm256_sllv_epi64 (__m256i a, __m256i count) pure @safe
 // TODO __m256i _mm256_sra_epi16 (__m256i a, __m128i count) pure @safe
 // TODO __m256i _mm256_sra_epi32 (__m256i a, __m128i count) pure @safe
+
+__m128i _mm_sllv_epi32(__m128i a, __m128i b) pure @trusted
+{
+    static if (GDC_with_AVX2 || LDC_with_AVX2)
+        return cast(__m128i)__builtin_ia32_psllv4si(cast(byte16)a, cast(byte16)b);
+    else
+    {
+        return _mm_setr_epi32(
+            a[0] << b[0],
+            a[1] << b[1],
+            a[2] << b[2],
+            a[3] << b[3]
+        );
+    }
+}
+
+// TODO: Unify immediates
+
+unittest
+{
+    __m128i expected = _mm_setr_epi64(1, 4);
+
+    assert(_mm_sllv_epi32(_mm_setr_epi64(1, 2), _mm_setr_epi64(0, 1)).array == expected.array);
+}
+
+__m128i _mm_sllv_epi64(__m128i a, __m128i b) pure @trusted
+{
+    static if (GDC_with_AVX2 || LDC_with_AVX2)
+        return cast(__m128i)__builtin_ia32_psllv2di(cast(long2)a, cast(long2)b);
+    else
+    {
+        // TODO: _mm_setr_epi64x should be a thing
+        return _mm_setr_epi64(
+            _mm_extract_epi64(a, 0) << _mm_extract_epi64(b, 0),
+            _mm_extract_epi64(a, 1) << _mm_extract_epi64(b, 1)
+        );
+    }
+}
+
+unittest
+{
+    __m128i expected = _mm_setr_epi64(1, 4);
+
+    assert(_mm_sllv_epi64(_mm_setr_epi64(1, 2), _mm_setr_epi64(0, 1)).array == expected.array);
+}
 
 /// Shift packed 32-bit integers in `a` right by `imm8` while shifting in sign bits.
 __m256i _mm256_srai_epi16 (__m256i a, int imm8) pure @safe

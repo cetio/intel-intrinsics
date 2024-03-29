@@ -2953,6 +2953,7 @@ unittest
 // TODO __m256i _mm256_sra_epi16 (__m256i a, __m128i count) pure @safe
 // TODO __m256i _mm256_sra_epi32 (__m256i a, __m128i count) pure @safe
 
+/// Shift packed 32-bit integers in `a` left by the amount specified by the corresponding element in `b` while shifting in zeros, and return the results.
 __m128i _mm_sllv_epi32(__m128i a, __m128i b) pure @trusted
 {
     static if (GDC_with_AVX2 || LDC_with_AVX2)
@@ -2968,8 +2969,6 @@ __m128i _mm_sllv_epi32(__m128i a, __m128i b) pure @trusted
     }
 }
 
-// TODO: Unify immediates
-
 unittest
 {
     __m128i expected = _mm_setr_epi64(1, 4);
@@ -2977,6 +2976,7 @@ unittest
     assert(_mm_sllv_epi32(_mm_setr_epi64(1, 2), _mm_setr_epi64(0, 1)).array == expected.array);
 }
 
+/// Shift packed 64-bit integers in `a` left by the amount specified by the corresponding element in `b` while shifting in zeros, and return the results.
 __m128i _mm_sllv_epi64(__m128i a, __m128i b) pure @trusted
 {
     static if (GDC_with_AVX2 || LDC_with_AVX2)
@@ -2995,6 +2995,50 @@ unittest
     __m128i expected = _mm_setr_epi64(1, 4);
 
     assert(_mm_sllv_epi64(_mm_setr_epi64(1, 2), _mm_setr_epi64(0, 1)).array == expected.array);
+}
+
+/// Shift packed 32-bit integers in `a` right by the amount specified by the corresponding element in `b` while shifting in zeros, and return the results.
+__m128i _mm_srlv_epi32(__m128i a, __m128i b) pure @trusted
+{
+    static if (GDC_with_AVX2 || LDC_with_AVX2)
+        return cast(__m128i)__builtin_ia32_psrlv4si(cast(byte16)a, cast(byte16)b);
+    else
+    {
+        return _mm_setr_epi32(
+            a[0] >> b[0],
+            a[1] >> b[1],
+            a[2] >> b[2],
+            a[3] >> b[3]
+        );
+    }
+}
+
+unittest
+{
+    __m128i expected = _mm_setr_epi64(1, 2);
+
+    assert(_mm_srlv_epi32(_mm_setr_epi64(1, 4), _mm_setr_epi64(0, 1)).array == expected.array);
+}
+
+/// Shift packed 64-bit integers in `a` right by the amount specified by the corresponding element in `b` while shifting in zeros, and return the results.
+__m128i _mm_srlv_epi64(__m128i a, __m128i b) pure @trusted
+{
+    static if (GDC_with_AVX2 || LDC_with_AVX2)
+        return cast(__m128i)__builtin_ia32_psrlv2di(cast(long2)a, cast(long2)b);
+    else
+    {
+        return _mm_setr_epi64(
+            _mm_extract_epi64(a, 0) >> _mm_extract_epi64(b, 0),
+            _mm_extract_epi64(a, 1) >> _mm_extract_epi64(b, 1)
+        );
+    }
+}
+
+unittest
+{
+    __m128i expected = _mm_setr_epi64(1, 2);
+
+    assert(_mm_srlv_epi64(_mm_setr_epi64(1, 4), _mm_setr_epi64(0, 1)).array == expected.array);
 }
 
 /// Shift packed 32-bit integers in `a` right by `imm8` while shifting in sign bits.
@@ -3144,12 +3188,27 @@ unittest
 
 // TODO __m256i _mm256_srli_epi64 (__m256i a, int imm8) pure @safe
 // TODO __m256i _mm256_srli_si256 (__m256i a, const int imm8) pure @safe
-// TODO __m128i _mm_srlv_epi32 (__m128i a, __m128i count) pure @safe
 // TODO __m256i _mm256_srlv_epi32 (__m256i a, __m256i count) pure @safe
-// TODO __m128i _mm_srlv_epi64 (__m128i a, __m128i count) pure @safe
 // TODO __m256i _mm256_srlv_epi64 (__m256i a, __m256i count) pure @safe
 
-// TODO __m256i _mm256_stream_load_si256 (__m256i const* mem_addr) pure @safe
+// TODO: Unify pointers
+
+__m256i _mm256_stream_load_si256(const(__m256i)* ptr) pure @trusted
+{
+    static if (GDC_with_AVX2 || LDC_with_AVX2)
+        return cast(__m256i)__builtin_ia32_movntdqa256(ptr);
+    else
+    {
+        scope (exit) _mm_clflush(ptr);
+        return _mm256_load_si256(ptr);
+    }
+}
+
+unittest
+{
+    __m256i a = _mm256_set1_epi64(2);
+    assert(_mm256_stream_load_si256(&a).array == a.array);
+}
 
 /// Subtract packed 16-bit integers in `b` from packed 16-bit integers in `a`.
 __m256i _mm256_sub_epi16 (__m256i a, __m256i b) pure @safe

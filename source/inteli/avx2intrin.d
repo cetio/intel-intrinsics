@@ -2782,6 +2782,9 @@ unittest
     assert(R.array == correct);
 }
 
+// TODO __m256i _mm256_shufflehi_epi16 (__m256i a, const int imm8) pure @safe
+// TODO __m256i _mm256_shufflelo_epi16 (__m256i a, const int imm8) pure @safe
+
 /// Shuffle 8-bit integers in `a` within 128-bit lanes according to shuffle control mask in the 
 /// corresponding 8-bit element of `b`, and return the results.
 __m256i _mm256_shuffle_epi8(__m256i a, __m256i b) pure @trusted
@@ -2811,6 +2814,8 @@ unittest
     assert(_mm256_shuffle_epi8(a, b).array == expected.array);
 }
 
+// TODO: Shuffling should ideally NOT use comptime parameters, as it makes dynamic masks impossible.5
+
 /// Blend packed 8-bit integers from `a` and `b` using `mask`, and return the results.
 __m256i _mm256_blendv_epi8(__m256i a, __m256i b, __m256i mask) @trusted
 {
@@ -2838,9 +2843,6 @@ unittest
     assert(_mm256_blendv_epi8(a, b, mask).array == expected.array);
 }
 
-// TODO __m256i _mm256_shuffle_epi32 (__m256i a, const int imm8) pure @safe
-// TODO __m256i _mm256_shufflehi_epi16 (__m256i a, const int imm8) pure @safe
-// TODO __m256i _mm256_shufflelo_epi16 (__m256i a, const int imm8) pure @safe
 // TODO __m256i _mm256_sign_epi16 (__m256i a, __m256i b) pure @safe
 // TODO __m256i _mm256_sign_epi32 (__m256i a, __m256i b) pure @safe
 // TODO __m256i _mm256_sign_epi8 (__m256i a, __m256i b) pure @safe
@@ -3191,14 +3193,23 @@ unittest
 // TODO __m256i _mm256_srlv_epi32 (__m256i a, __m256i count) pure @safe
 // TODO __m256i _mm256_srlv_epi64 (__m256i a, __m256i count) pure @safe
 
-// TODO: Unify pointers
-
-__m256i _mm256_stream_load_si256(const(__m256i)* ptr) pure @trusted
+/// Load 256-bits of integer data from memory using a non-temporal memory hint. 
+/// `ptr` must be aligned on a 32-byte boundary or a general-protection exception may be generated.
+__m256i _mm256_stream_load_si256(const(__m256i)* ptr) @trusted
 {
-    static if (GDC_with_AVX2 || LDC_with_AVX2)
+    static if (GDC_with_AVX2)
         return cast(__m256i)__builtin_ia32_movntdqa256(ptr);
+    else static if (LDC_with_AVX2)
+    {
+        enum prefix = `!0 = !{ i64 1 }`;
+        enum ir = `
+            %val = load <4 x i64>, <4 x i64>* %0, align 32, !nontemporal !0
+            ret <4 x i64> %val`;
+        return LDCInlineIREx!(prefix, ir, "", __m256i, double2*)(cast(double2*)ptr);
+    }
     else
     {
+        // Sacrifices purity and performance in exchange for ~correctness~ accuracy.
         scope (exit) _mm_clflush(ptr);
         return _mm256_load_si256(ptr);
     }

@@ -2782,8 +2782,37 @@ unittest
     assert(R.array == correct);
 }
 
-// TODO __m256i _mm256_shufflehi_epi16 (__m256i a, const int imm8) pure @safe
-// TODO __m256i _mm256_shufflelo_epi16 (__m256i a, const int imm8) pure @safe
+/// Shuffle 16-bit integers in the high 64 bits of 128-bit lanes of `a` using the control in `CTRL`, and return the results.
+__m256i _mm256_shufflehi_epi16(ubyte CTRL)(__m256i a) pure @trusted
+{
+    // Not sure if there is any builtin available for this intrinsic, but the less efficient approach will do :+:
+    auto hi = _mm_shufflehi_epi16!CTRL(_mm256_extracti128_si256!0(a));
+    auto lo = _mm_shufflehi_epi16!CTRL(_mm256_extracti128_si256!0(a));
+    return _mm256_set_m128i(hi, lo);
+}
+
+unittest
+{
+    __m256i a = _mm256_set_epi8(32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1);
+
+    assert(_mm256_shufflehi_epi16!2(a).array == [578437695752307201, 723120249109024269, 578437695752307201, 723120249109024269]);
+}
+
+/// Shuffle 16-bit integers in the low 64 bits of 128-bit lanes of `a` using the control in `CTRL`, and return the results.
+__m256i _mm256_shufflelo_epi16(ubyte CTRL)(__m256i a) pure @trusted
+{
+    // Not sure if there is any builtin available for this intrinsic, but the less efficient approach will do :+:
+    auto hi = _mm_shufflelo_epi16!CTRL(_mm256_extracti128_si256!0(a));
+    auto lo = _mm_shufflelo_epi16!CTRL(_mm256_extracti128_si256!0(a));
+    return _mm256_set_m128i(hi, lo);
+}
+
+unittest
+{
+    __m256i a = _mm256_set_epi8(32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1);
+
+    assert(_mm256_shufflelo_epi16!2(a).array == [144398866404410885, 1157159078456920585, 144398866404410885, 1157159078456920585]);
+}
 
 /// Shuffle 8-bit integers in `a` within 128-bit lanes according to shuffle control mask in the 
 /// corresponding 8-bit element of `b`, and return the results.
@@ -2816,12 +2845,11 @@ unittest
 
 // TODO: Shuffling should ideally NOT use comptime parameters, as it makes dynamic masks impossible.5
 
-/// Shuffle 32-bit integers in `a` within 128-bit lanes according to shuffle control mask in the 
-/// corresponding 32-bit element of `b`, and return the results.
+/// Shuffle 32-bit integers in `a` within 128-bit lanes using the control in `CTRL`, and return the results.
 __m256i _mm256_shuffle_epi32(ubyte CTRL)(__m256i a) pure @trusted
 {
     static if (GDC_with_AVX2)
-        return cast(__m256i)__builtin_ia32_pshufd256(cast(byte32)a, cast(int)CTRL);
+        return cast(__m256i)__builtin_ia32_pshufd256(cast(byte32)a, CTRL);
     else static if (LDC_with_AVX2)
     {
         return cast(__m256i)shufflevectorLDC!(int8,

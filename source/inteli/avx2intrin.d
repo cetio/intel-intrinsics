@@ -814,7 +814,7 @@ unittest
     assert(B.array == correct);
 }
 
-// Shift 128-bit lanes in `a` left by `CNT` bytes while shifting in zeros, and return the results.
+/+ // Shift 128-bit lanes in `a` left by `CNT` bytes while shifting in zeros, and return the results.
 __m256i _mm256_bslli_epi128(ubyte CNT)(__m256i a) pure @trusted
 {
     static if (CNT == 16)
@@ -827,9 +827,29 @@ __m256i _mm256_bslli_epi128(ubyte CNT)(__m256i a) pure @trusted
             return cast(__m256i)__builtin_ia32_pslldqi256(cast(byte32)a, cast(int)(CNT * 8));
         else
         { */
-            auto hi = _mm_bslli_si128!CNT(_mm256_extractf128_si256!0(a));
-            auto lo = _mm_bslli_si128!CNT(_mm256_extractf128_si256!1(a));
-            return _mm256_set_m128i(hi, lo);
+        align (32) ubyte[32] mask;
+
+        static foreach (ubyte i; 0..16)
+        {
+            static if (i < CNT)
+            {
+                mask[i] = ubyte.max;
+                mask[i + 16] = ubyte.max;
+            }
+            else
+            {
+                mask[i] = i - CNT;
+                mask[i + 16] = i - CNT;
+            }
+        }
+        import std.stdio;
+        debug writeln(mask);
+
+        debug writeln((cast(ubyte*)&a)[0..32]);
+        a = _mm256_shuffle_epi8(a, *cast(__m256i*)&mask);
+        debug writeln((cast(ubyte*)&a)[0..32]);
+
+        return _mm256_shuffle_epi8(a, *cast(__m256i*)&mask);
         //}
     }
 }
@@ -839,7 +859,7 @@ unittest
     __m256i a = _mm256_setr_epi8(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32);
 
     assert(_mm256_bslli_epi128!7(a).array == [1224979098644774912, 1808220633999610642, 72057594037927936, 650777868590383874]);
-}
+} +/
 
 // Shift 128-bit lanes in `a` right by `CNT` bytes while shifting in zeros, and return the results.
 __m256i _mm256_bsrli_epi128(ubyte CNT)(__m256i a) pure @trusted

@@ -1819,7 +1819,7 @@ unittest
     __m128i expected = _mm_setr_epi64(1, 0);
 
     assert(_mm_maskload_epi64(data.ptr, mask).array == expected.array);
-}
+} +/
 
 /// Load packed 32-bit integers from memory into `dst` using `mask` (elements are zeroed out when the highest bit is not set in the corresponding element).
 __m256i _mm256_maskload_epi32(const(int)* ptr, __m256i mask) @system
